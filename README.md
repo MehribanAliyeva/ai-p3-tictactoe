@@ -45,3 +45,8 @@ python3 main.py make-move --game-id 1234 --team-id 1001 --auto --dry-run
 ```bash
 python3 -m unittest discover -s tests -v
 ```
+
+## Coordinate Note
+
+The live server currently behaves as `row,col` in move submission payloads.  
+The client normalizes this to internal `x,y` representation automatically.

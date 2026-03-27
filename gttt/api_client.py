@@ -7,6 +7,7 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from gttt.constants import DEFAULT_AUTHORIZATION_HEADER
+from gttt.coordinates import move_to_server_text
 from gttt.errors import APIResponseError, APITransportError
 from gttt.models import Credentials, GameDetails, Move
 from gttt.parsing import (
@@ -14,6 +15,7 @@ from gttt.parsing import (
     parse_game_details,
     parse_id_list,
     parse_json_text,
+    parse_moves,
 )
 
 
@@ -139,24 +141,7 @@ class APIClient:
 
     def get_moves(self, game_id: str, count: int = 20) -> list[Move]:
         payload = self.get_moves_raw(game_id, count)
-        raw_moves = payload.get("moves", [])
-        if not isinstance(raw_moves, list):
-            return []
-
-        parsed: list[Move] = []
-        for item in raw_moves:
-            if not isinstance(item, dict):
-                continue
-            try:
-                parsed.append(Move(x=int(item["moveX"]), y=int(item["moveY"])))
-            except (KeyError, TypeError, ValueError):
-                move_text = item.get("move")
-                if isinstance(move_text, str) and "," in move_text:
-                    try:
-                        parsed.append(Move.from_text(move_text))
-                    except (TypeError, ValueError):
-                        continue
-        return parsed
+        return parse_moves(payload)
 
     def make_move(self, game_id: str, team_id: str, move: Move) -> str:
         payload = self._request(
@@ -165,7 +150,7 @@ class APIClient:
                 "type": "move",
                 "gameId": game_id,
                 "teamId": team_id,
-                "move": move.to_text(),
+                "move": move_to_server_text(move),
             },
         )
         return str(payload.get("moveId", ""))

@@ -5,6 +5,12 @@ from __future__ import annotations
 import json
 from typing import Any, Iterable
 
+from gttt.coordinates import (
+    move_to_server_text,
+    move_to_server_pair,
+    server_pair_to_move,
+    server_text_to_move,
+)
 from gttt.errors import APITransportError
 from gttt.models import GameDetails, Move
 
@@ -92,21 +98,21 @@ def parse_moves(payload: dict[str, Any]) -> list[Move]:
     for item in raw_moves:
         if not isinstance(item, dict):
             continue
+        move_text = item.get("move")
+        if isinstance(move_text, str) and "," in move_text:
+            try:
+                parsed.append(server_text_to_move(move_text))
+                continue
+            except (TypeError, ValueError):
+                pass
+
         x_value = item.get("moveX")
         y_value = item.get("moveY")
-        move_text = item.get("move")
-
         if x_value is None or y_value is None:
-            if isinstance(move_text, str) and "," in move_text:
-                try:
-                    parsed.append(Move.from_text(move_text))
-                    continue
-                except (TypeError, ValueError):
-                    continue
             continue
 
         try:
-            parsed.append(Move(x=int(x_value), y=int(y_value)))
+            parsed.append(server_pair_to_move(int(x_value), int(y_value)))
         except (TypeError, ValueError):
             continue
     return parsed
@@ -139,19 +145,22 @@ def parse_board_map(payload: dict[str, Any]) -> dict[tuple[int, int], str]:
             continue
         left, right = key.split(",", 1)
         try:
-            x_val = int(left.strip())
-            y_val = int(right.strip())
+            move = server_pair_to_move(int(left.strip()), int(right.strip()))
         except ValueError:
             continue
         symbol = str(value)
         if symbol in {"X", "O"}:
-            mapped[(x_val, y_val)] = symbol
+            mapped[(move.x, move.y)] = symbol
     return mapped
 
 
 def board_map_to_json_dict(board_map: dict[tuple[int, int], str]) -> dict[str, str]:
-    return {f"{x},{y}": symbol for (x, y), symbol in sorted(board_map.items())}
+    output: dict[str, str] = {}
+    for x, y in sorted(board_map):
+        first, second = move_to_server_pair(Move(x=x, y=y))
+        output[f"{first},{second}"] = board_map[(x, y)]
+    return output
 
 
 def move_list_to_text(moves: Iterable[Move]) -> list[str]:
-    return [move.to_text() for move in moves]
+    return [move_to_server_text(move) for move in moves]

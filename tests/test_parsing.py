@@ -1,6 +1,6 @@
 import unittest
 
-from gttt.parsing import parse_board_map, parse_game_details
+from gttt.parsing import board_map_to_json_dict, parse_board_map, parse_game_details
 
 
 class ParsingTests(unittest.TestCase):
@@ -17,8 +17,14 @@ class ParsingTests(unittest.TestCase):
     def test_parse_board_map_stringified_json(self) -> None:
         payload = {"code": "OK", "output": '{"1,2":"X","2,2":"O"}'}
         board_map = parse_board_map(payload)
-        self.assertEqual(board_map[(1, 2)], "X")
+        self.assertEqual(board_map[(2, 1)], "X")
         self.assertEqual(board_map[(2, 2)], "O")
+
+    def test_board_map_roundtrip_uses_server_order(self) -> None:
+        board_map = {(2, 1): "X", (2, 2): "O"}
+        output = board_map_to_json_dict(board_map)
+        self.assertEqual(output["1,2"], "X")
+        self.assertEqual(output["2,2"], "O")
 
 
 if __name__ == "__main__":

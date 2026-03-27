@@ -12,7 +12,8 @@ from gttt.agent import choose_auto_move
 from gttt.api_client import APIClient
 from gttt.config import resolve_credentials
 from gttt.constants import DEFAULT_BASE_URL
-from gttt.models import Move, SearchConfig
+from gttt.coordinates import move_to_server_text, server_text_to_move
+from gttt.models import SearchConfig
 from gttt.parsing import board_map_to_json_dict, move_list_to_text
 
 
@@ -134,9 +135,9 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
             raise ValueError("Use exactly one of --move or --auto.")
 
         if args.move:
-            move = Move.from_text(args.move)
+            move = server_text_to_move(args.move)
             move_id = client.make_move(args.game_id, args.team_id, move)
-            return {"code": "OK", "moveId": move_id, "move": move.to_text()}
+            return {"code": "OK", "moveId": move_id, "move": move_to_server_text(move)}
 
         decision, board, details = choose_auto_move(
             client=client,
@@ -155,7 +156,7 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
         if args.dry_run:
             return {
                 "code": "OK",
-                "selectedMove": decision.move.to_text(),
+                "selectedMove": move_to_server_text(decision.move),
                 "mySymbol": decision.my_symbol,
                 "opponentSymbol": decision.opponent_symbol,
                 "target": decision.target,
@@ -167,7 +168,7 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
         return {
             "code": "OK",
             "moveId": move_id,
-            "move": decision.move.to_text(),
+            "move": move_to_server_text(decision.move),
             "mySymbol": decision.my_symbol,
             "target": decision.target,
         }
