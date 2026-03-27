@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from ast import literal_eval
 from typing import Any, Iterable
 
 from gttt.coordinates import (
@@ -32,20 +33,41 @@ def parse_json_if_string(value: Any) -> Any:
             try:
                 return json.loads(stripped)
             except json.JSONDecodeError:
-                return value
+                try:
+                    return literal_eval(stripped)
+                except (ValueError, SyntaxError):
+                    return value
     return value
 
 
 def parse_id_list(value: Any) -> list[str]:
+    def normalize_item(item: Any) -> list[str]:
+        parsed_item = parse_json_if_string(item)
+        if isinstance(parsed_item, dict):
+            if len(parsed_item) == 1:
+                return [str(next(iter(parsed_item.keys())))]
+            return [str(key) for key in parsed_item.keys()]
+        if isinstance(parsed_item, list):
+            return [str(part) for part in parsed_item]
+        return [str(parsed_item)]
+
     if isinstance(value, list):
-        return [str(item) for item in value]
+        items: list[str] = []
+        for item in value:
+            items.extend(normalize_item(item))
+        return items
     if isinstance(value, str):
         parsed = parse_json_if_string(value)
         if isinstance(parsed, list):
-            return [str(item) for item in parsed]
+            items: list[str] = []
+            for item in parsed:
+                items.extend(normalize_item(item))
+            return items
         return [part.strip() for part in value.split(",") if part.strip()]
     if isinstance(value, dict):
-        return [str(item) for item in value.values()]
+        if len(value) == 1:
+            return [str(next(iter(value.keys())))]
+        return [str(key) for key in value.keys()]
     return []
 
 

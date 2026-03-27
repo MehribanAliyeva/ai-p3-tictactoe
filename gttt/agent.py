@@ -13,19 +13,20 @@ from gttt.search import AlphaBetaSearcher
 def infer_symbols(
     my_team_id: str,
     game_details: GameDetails,
-    moves_payload: dict[str, object],
+    moves_payload: dict[str, object] | None,
     board: Board,
 ) -> tuple[str, str]:
-    symbol_from_moves = parse_symbol_by_team(moves_payload, my_team_id)
-    if symbol_from_moves == "X":
-        return "X", "O"
-    if symbol_from_moves == "O":
-        return "O", "X"
-
     if str(game_details.team1_id) == str(my_team_id):
         return "X", "O"
     if str(game_details.team2_id) == str(my_team_id):
         return "O", "X"
+
+    if moves_payload:
+        symbol_from_moves = parse_symbol_by_team(moves_payload, my_team_id)
+        if symbol_from_moves == "X":
+            return "X", "O"
+        if symbol_from_moves == "O":
+            return "O", "X"
 
     x_count = sum(cell == "X" for row in board.grid for cell in row)
     o_count = sum(cell == "O" for row in board.grid for cell in row)
@@ -54,14 +55,13 @@ def choose_auto_move(
     board = Board.from_board_string(board_text)
     target = infer_target(target_override, details, board.size)
 
-    moves_payload: dict[str, object] = {"moves": []}
-    if not board.is_empty():
+    my_symbol, opp_symbol = infer_symbols(team_id, details, None, board)
+    if not details.team1_id and not details.team2_id and not board.is_empty():
         try:
             moves_payload = client.get_moves_raw(game_id, max(recent_moves_count, 20))
+            my_symbol, opp_symbol = infer_symbols(team_id, details, moves_payload, board)
         except Exception:
-            moves_payload = {"moves": []}
-
-    my_symbol, opp_symbol = infer_symbols(team_id, details, moves_payload, board)
+            pass
 
     if verify_turn and details.turn_team_id and str(details.turn_team_id) != str(team_id):
         raise SearchError(

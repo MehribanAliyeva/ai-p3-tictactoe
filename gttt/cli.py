@@ -75,6 +75,7 @@ def build_parser() -> argparse.ArgumentParser:
     command.add_argument("--depth", type=int, default=3)
     command.add_argument("--top-k-moves", type=int, default=12)
     command.add_argument("--neighbor-radius", type=int, default=1)
+    command.add_argument("--random-tie-break", action="store_true")
     command.add_argument("--recent-moves-count", type=int, default=20)
     command.add_argument("--no-turn-check", action="store_true")
 
@@ -147,6 +148,7 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
                 depth=args.depth,
                 top_k_moves=args.top_k_moves,
                 neighbor_radius=args.neighbor_radius,
+                random_tie_break=args.random_tie_break,
             ),
             target_override=args.target,
             recent_moves_count=args.recent_moves_count,

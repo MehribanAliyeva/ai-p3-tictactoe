@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import random
 from typing import Optional
 
 from gttt.board import Board
@@ -26,6 +27,7 @@ class AlphaBetaSearcher:
         self.opp_symbol = opp_symbol
         self.cfg = search_config
         self.weights = weights
+        self._rng = random.Random()
 
     def choose_move(self) -> Move:
         legal_moves = self.board.candidate_moves(self.cfg.neighbor_radius)
@@ -67,7 +69,7 @@ class AlphaBetaSearcher:
 
     def _ordered_moves(self, symbol: str) -> list[Move]:
         candidates = self.board.candidate_moves(self.cfg.neighbor_radius)
-        scored: list[tuple[int, Move]] = []
+        scored: list[tuple[float, Move]] = []
 
         for move in candidates:
             self.board.place(move, symbol)
@@ -80,6 +82,9 @@ class AlphaBetaSearcher:
             )
             score += positional_bonus(self.board.size, move, self.weights)
             self.board.clear(move)
+            if self.cfg.random_tie_break:
+                # Tiny jitter only to break score ties and reduce deterministic openings.
+                score += self._rng.uniform(-1e-3, 1e-3)
             scored.append((score, move))
 
         reverse = symbol == self.my_symbol

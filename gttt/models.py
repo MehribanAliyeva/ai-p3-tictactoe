@@ -33,6 +33,7 @@ class SearchConfig:
     depth: int = 3
     top_k_moves: int = 12
     neighbor_radius: int = 1
+    random_tie_break: bool = False
 
 
 @dataclass(frozen=True)

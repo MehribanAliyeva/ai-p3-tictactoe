@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import socket
+import time
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -20,9 +22,17 @@ from gttt.parsing import (
 
 
 class APIClient:
-    def __init__(self, credentials: Credentials, timeout_seconds: int = 30) -> None:
+    def __init__(
+        self,
+        credentials: Credentials,
+        timeout_seconds: int = 30,
+        max_retries: int = 2,
+        retry_backoff_seconds: float = 0.4,
+    ) -> None:
         self.credentials = credentials
         self.timeout_seconds = timeout_seconds
+        self.max_retries = max_retries
+        self.retry_backoff_seconds = retry_backoff_seconds
 
     def _headers(self, is_post: bool) -> dict[str, str]:
         headers = {
@@ -51,24 +61,40 @@ class APIClient:
 
         request = Request(url=url, data=data, headers=self._headers(is_post), method=method.upper())
 
-        try:
-            with urlopen(request, timeout=self.timeout_seconds) as response:
-                body = response.read().decode("utf-8", errors="replace").strip()
-        except HTTPError as exc:
-            error_body = exc.read().decode("utf-8", errors="replace").strip()
-            raise APITransportError(f"HTTP {exc.code}: {error_body or exc.reason}") from exc
-        except URLError as exc:
-            raise APITransportError(f"Network error: {exc.reason}") from exc
+        for attempt in range(self.max_retries + 1):
+            try:
+                with urlopen(request, timeout=self.timeout_seconds) as response:
+                    body = response.read().decode("utf-8", errors="replace").strip()
+            except HTTPError as exc:
+                error_body = exc.read().decode("utf-8", errors="replace").strip()
+                if exc.code >= 500 and attempt < self.max_retries:
+                    time.sleep(self.retry_backoff_seconds * (2**attempt))
+                    continue
+                raise APITransportError(f"HTTP {exc.code}: {error_body or exc.reason}") from exc
+            except (URLError, TimeoutError, socket.timeout) as exc:
+                if attempt < self.max_retries:
+                    time.sleep(self.retry_backoff_seconds * (2**attempt))
+                    continue
+                reason = exc.reason if isinstance(exc, URLError) else str(exc)
+                raise APITransportError(f"Network error: {reason}") from exc
 
-        if not body:
-            raise APITransportError("Empty response from API")
-        if body.startswith("<"):
-            raise APITransportError(f"Unexpected HTML response: {body[:200]}")
+            if not body:
+                if attempt < self.max_retries:
+                    time.sleep(self.retry_backoff_seconds * (2**attempt))
+                    continue
+                raise APITransportError("Empty response from API")
+            if body.startswith("<"):
+                if attempt < self.max_retries:
+                    time.sleep(self.retry_backoff_seconds * (2**attempt))
+                    continue
+                raise APITransportError(f"Unexpected HTML response: {body[:200]}")
 
-        payload = parse_json_text(body)
-        if str(payload.get("code", "OK")).upper() == "FAIL":
-            raise APIResponseError(str(payload.get("message", "Request failed")), payload)
-        return payload
+            payload = parse_json_text(body)
+            if str(payload.get("code", "OK")).upper() == "FAIL":
+                raise APIResponseError(str(payload.get("message", "Request failed")), payload)
+            return payload
+
+        raise APITransportError("Request failed after retries")
 
     def create_team(self, name: str) -> str:
         payload = self._request("POST", {"type": "team", "name": name})

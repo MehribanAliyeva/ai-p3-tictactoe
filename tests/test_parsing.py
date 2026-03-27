@@ -1,6 +1,11 @@
 import unittest
 
-from gttt.parsing import board_map_to_json_dict, parse_board_map, parse_game_details
+from gttt.parsing import (
+    board_map_to_json_dict,
+    parse_board_map,
+    parse_game_details,
+    parse_id_list,
+)
 
 
 class ParsingTests(unittest.TestCase):
@@ -25,6 +30,11 @@ class ParsingTests(unittest.TestCase):
         output = board_map_to_json_dict(board_map)
         self.assertEqual(output["1,2"], "X")
         self.assertEqual(output["2,2"], "O")
+
+    def test_parse_id_list_handles_dict_like_items(self) -> None:
+        payload_value = ["{'1490': 'TeamA'}", {"1491": "TeamB"}]
+        parsed = parse_id_list(payload_value)
+        self.assertEqual(parsed, ["1490", "1491"])
 
 
 if __name__ == "__main__":

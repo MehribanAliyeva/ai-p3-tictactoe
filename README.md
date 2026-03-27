@@ -38,6 +38,7 @@ python3 main.py create-game --team1 1001 --team2 1002 --board-size 12 --target 6
 python3 main.py game-details --game-id 1234
 python3 main.py make-move --game-id 1234 --team-id 1001 --move 4,4
 python3 main.py make-move --game-id 1234 --team-id 1001 --auto --dry-run
+python3 main.py make-move --game-id 1234 --team-id 1001 --auto --random-tie-break
 ```
 
 ## Tests
