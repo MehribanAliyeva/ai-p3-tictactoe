@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 import random
+import time
 from typing import Optional
 
 from gttt.board import Board
 from gttt.errors import SearchError
 from gttt.heuristics import DEFAULT_WEIGHTS, HeuristicWeights, evaluate_board, positional_bonus
 from gttt.models import Move, SearchConfig
+
+
+class _SearchTimeout(Exception):
+    """Internal control-flow exception for time-bounded search."""
 
 
 class AlphaBetaSearcher:
@@ -28,6 +33,22 @@ class AlphaBetaSearcher:
         self.cfg = search_config
         self.weights = weights
         self._rng = random.Random()
+        self._deadline: float | None = None
+        self._transposition: dict[tuple[str, int, bool], tuple[int, Optional[Move]]] = {}
+        self.transposition_hits = 0
+
+    @property
+    def transposition_size(self) -> int:
+        return len(self._transposition)
+
+    def _board_key(self) -> str:
+        return self.board.to_ascii()
+
+    def _check_timeout(self) -> None:
+        if self._deadline is None:
+            return
+        if time.monotonic() >= self._deadline:
+            raise _SearchTimeout()
 
     def choose_move(self) -> Move:
         legal_moves = self.board.candidate_moves(self.cfg.neighbor_radius)
@@ -50,13 +71,39 @@ class AlphaBetaSearcher:
             if is_loss:
                 return move
 
-        _, best_move = self._minimax(
-            depth=self.cfg.depth,
-            alpha=-(10**18),
-            beta=10**18,
-            maximizing=True,
-        )
-        return best_move or legal_moves[0]
+        if self.cfg.max_time_ms is not None:
+            self._deadline = time.monotonic() + (self.cfg.max_time_ms / 1000.0)
+        else:
+            self._deadline = None
+
+        fallback_move = legal_moves[0]
+
+        if self.cfg.iterative_deepening:
+            best_move = fallback_move
+            for depth in range(1, self.cfg.depth + 1):
+                try:
+                    _, candidate = self._minimax(
+                        depth=depth,
+                        alpha=-(10**18),
+                        beta=10**18,
+                        maximizing=True,
+                    )
+                except _SearchTimeout:
+                    break
+                if candidate is not None:
+                    best_move = candidate
+            return best_move
+
+        try:
+            _, best_move = self._minimax(
+                depth=self.cfg.depth,
+                alpha=-(10**18),
+                beta=10**18,
+                maximizing=True,
+            )
+        except _SearchTimeout:
+            return fallback_move
+        return best_move or fallback_move
 
     def _terminal_score(self, depth: int) -> Optional[int]:
         if self.board.has_winner(self.my_symbol, self.target):
@@ -98,11 +145,21 @@ class AlphaBetaSearcher:
         beta: int,
         maximizing: bool,
     ) -> tuple[int, Optional[Move]]:
+        self._check_timeout()
+
+        key = (self._board_key(), depth, maximizing)
+        cached = self._transposition.get(key)
+        if cached is not None:
+            self.transposition_hits += 1
+            return cached
+
         terminal = self._terminal_score(depth)
         if terminal is not None:
-            return terminal, None
+            result = (terminal, None)
+            self._transposition[key] = result
+            return result
         if depth == 0:
-            return (
+            result = (
                 evaluate_board(
                     board=self.board,
                     target=self.target,
@@ -113,11 +170,14 @@ class AlphaBetaSearcher:
                 ),
                 None,
             )
+            self._transposition[key] = result
+            return result
 
         if maximizing:
             best_score = -(10**18)
             best_move: Optional[Move] = None
             for move in self._ordered_moves(self.my_symbol):
+                self._check_timeout()
                 self.board.place(move, self.my_symbol)
                 score, _ = self._minimax(depth - 1, alpha, beta, False)
                 self.board.clear(move)
@@ -128,11 +188,14 @@ class AlphaBetaSearcher:
                 alpha = max(alpha, best_score)
                 if beta <= alpha:
                     break
-            return best_score, best_move
+            result = (best_score, best_move)
+            self._transposition[key] = result
+            return result
 
         best_score = 10**18
         best_move = None
         for move in self._ordered_moves(self.opp_symbol):
+            self._check_timeout()
             self.board.place(move, self.opp_symbol)
             score, _ = self._minimax(depth - 1, alpha, beta, True)
             self.board.clear(move)
@@ -143,4 +206,6 @@ class AlphaBetaSearcher:
             beta = min(beta, best_score)
             if beta <= alpha:
                 break
-        return best_score, best_move
+        result = (best_score, best_move)
+        self._transposition[key] = result
+        return result

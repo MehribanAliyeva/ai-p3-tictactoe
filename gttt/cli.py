@@ -76,6 +76,8 @@ def build_parser() -> argparse.ArgumentParser:
     command.add_argument("--top-k-moves", type=int, default=12)
     command.add_argument("--neighbor-radius", type=int, default=1)
     command.add_argument("--random-tie-break", action="store_true")
+    command.add_argument("--max-time-ms", type=int)
+    command.add_argument("--no-iterative-deepening", action="store_true")
     command.add_argument("--recent-moves-count", type=int, default=20)
     command.add_argument("--no-turn-check", action="store_true")
 
@@ -149,6 +151,8 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
                 top_k_moves=args.top_k_moves,
                 neighbor_radius=args.neighbor_radius,
                 random_tie_break=args.random_tie_break,
+                max_time_ms=args.max_time_ms,
+                iterative_deepening=not args.no_iterative_deepening,
             ),
             target_override=args.target,
             recent_moves_count=args.recent_moves_count,

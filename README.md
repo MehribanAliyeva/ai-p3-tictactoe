@@ -39,6 +39,7 @@ python3 main.py game-details --game-id 1234
 python3 main.py make-move --game-id 1234 --team-id 1001 --move 4,4
 python3 main.py make-move --game-id 1234 --team-id 1001 --auto --dry-run
 python3 main.py make-move --game-id 1234 --team-id 1001 --auto --random-tie-break
+python3 main.py make-move --game-id 1234 --team-id 1001 --auto --max-time-ms 1500
 ```
 
 ## Tests

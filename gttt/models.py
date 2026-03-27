@@ -34,6 +34,8 @@ class SearchConfig:
     top_k_moves: int = 12
     neighbor_radius: int = 1
     random_tie_break: bool = False
+    max_time_ms: int | None = None
+    iterative_deepening: bool = True
 
 
 @dataclass(frozen=True)
