@@ -48,6 +48,15 @@ def build_parser() -> argparse.ArgumentParser:
     command.add_argument("--team2", required=True)
     command.add_argument("--board-size", type=int, required=True)
     command.add_argument("--target", type=int, required=True)
+    command.add_argument("--auto-play", action="store_true")
+    command.add_argument("--my-team-id")
+    command.add_argument("--depth", type=int, default=3)
+    command.add_argument("--top-k-moves", type=int, default=12)
+    command.add_argument("--neighbor-radius", type=int, default=1)
+    command.add_argument("--recent-moves-count", type=int, default=20)
+    command.add_argument("--no-turn-check", action="store_true")
+    command.add_argument("--poll-seconds", type=float, default=30.0)
+    command.add_argument("--max-seconds", type=float, default=180.0)
 
     command = sub.add_parser("my-games")
     command.add_argument("--open-only", action="store_true")
@@ -83,6 +92,89 @@ def build_parser() -> argparse.ArgumentParser:
 
     return parser
 
+def run_auto_play_loop(
+    client: APIClient,
+    game_id: str,
+    team_id: str,
+    *,
+    depth: int,
+    top_k_moves: int,
+    neighbor_radius: int,
+    target: int | None,
+    recent_moves_count: int,
+    verify_turn: bool,
+    poll_seconds: float,
+    max_seconds: float,
+) -> dict[str, Any]:
+    deadline = time.time() + max_seconds
+    moves_made: list[dict[str, Any]] = []
+    last_seen_status: str | None = None
+
+    while time.time() < deadline:
+        details = client.get_game_details(game_id)
+        last_seen_status = details.status
+
+        status_text = (details.status or "").lower()
+        if any(word in status_text for word in ("won", "draw", "finished", "complete", "closed")):
+            return {
+                "code": "OK",
+                "gameId": game_id,
+                "status": details.status,
+                "movesMade": moves_made,
+                "message": "Game finished during auto-play window.",
+            }
+
+        try:
+            decision, board, details = choose_auto_move(
+                client=client,
+                game_id=game_id,
+                team_id=team_id,
+                search_config=SearchConfig(
+                    depth=depth,
+                    top_k_moves=top_k_moves,
+                    neighbor_radius=neighbor_radius,
+                ),
+                target_override=target,
+                recent_moves_count=recent_moves_count,
+                verify_turn=verify_turn,
+            )
+            move_id = client.make_move(game_id, team_id, decision.move)
+            moves_made.append(
+                {
+                    "moveId": move_id,
+                    "move": decision.move.to_text(),
+                    "mySymbol": decision.my_symbol,
+                    "target": decision.target,
+                }
+            )
+        except Exception as exc:
+            msg = str(exc).lower()
+            # Ignore expected polling-time states
+            if any(
+                phrase in msg
+                for phrase in (
+                    "not your turn",
+                    "not the move of the team",
+                    "no moves",
+                    "game is not started",
+                    "invalid move",
+                    "already occupied",
+                )
+            ):
+                time.sleep(poll_seconds)
+                continue
+            raise
+
+        time.sleep(poll_seconds)
+
+    return {
+        "code": "OK",
+        "gameId": game_id,
+        "status": last_seen_status,
+        "movesMade": moves_made,
+        "message": f"Auto-play window ended after {max_seconds} seconds.",
+    }
+
 
 def execute(args: argparse.Namespace) -> dict[str, Any]:
     credentials = resolve_credentials(
@@ -113,7 +205,29 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
 
     if args.command == "create-game":
         game_id = client.create_game(args.team1, args.team2, args.board_size, args.target)
-        return {"code": "OK", "gameId": game_id}
+
+        result: dict[str, Any] = {"code": "OK", "gameId": game_id}
+
+        if args.auto_play:
+            if not args.my_team_id:
+                raise ValueError("--my-team-id is required when --auto-play is used.")
+
+            auto_result = run_auto_play_loop(
+                client=client,
+                game_id=game_id,
+                team_id=args.my_team_id,
+                depth=args.depth,
+                top_k_moves=args.top_k_moves,
+                neighbor_radius=args.neighbor_radius,
+                target=args.target,
+                recent_moves_count=args.recent_moves_count,
+                verify_turn=not args.no_turn_check,
+                poll_seconds=args.poll_seconds,
+                max_seconds=args.max_seconds,
+            )
+            result["autoPlay"] = auto_result
+
+        return result
 
     if args.command == "my-games":
         return {"code": "OK", "games": client.get_my_games(args.open_only)}
