@@ -127,6 +127,24 @@ def run_auto_play_loop(
     while time.time() < deadline:
         details = client.get_game_details(game_id)
         last_seen_status = details.status
+
+        # If board is full, treat game as tie before evaluating turn ownership.
+        if isinstance(details.board_size, int) and isinstance(details.moves, int):
+            board_capacity = details.board_size * details.board_size
+            if board_capacity > 0 and details.moves >= board_capacity:
+                return {
+                    "code": "OK",
+                    "gameId": game_id,
+                    "status": details.status,
+                    "winnerTeamId": details.winner_team_id,
+                    "outcome": "tie",
+                    "movesMade": moves_made,
+                    "message": (
+                        f"Game finished as tie: board is full "
+                        f"({details.moves}/{board_capacity} moves)."
+                    ),
+                }
+
         is_my_turn = str(details.turn_team_id or "") == team_id
 
         if str(details.turn_team_id or "") == "-1":
