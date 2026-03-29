@@ -57,7 +57,7 @@ def build_parser() -> argparse.ArgumentParser:
     command.add_argument("--recent-moves-count", type=int, default=20)
     command.add_argument("--no-turn-check", action="store_true")
     command.add_argument("--poll-seconds", type=float, default=2.0)
-    command.add_argument("--max-seconds", type=float, default=180.0)
+    command.add_argument("--max-seconds", type=float, default=3600.0)
 
     command = sub.add_parser("join-game")
     command.add_argument("--game-id", required=True)
@@ -69,7 +69,7 @@ def build_parser() -> argparse.ArgumentParser:
     command.add_argument("--recent-moves-count", type=int, default=20)
     command.add_argument("--no-turn-check", action="store_true")
     command.add_argument("--poll-seconds", type=float, default=2.0)
-    command.add_argument("--max-seconds", type=float, default=180.0)
+    command.add_argument("--max-seconds", type=float, default=3600.0)
 
     command = sub.add_parser("my-games")
     command.add_argument("--open-only", action="store_true")
