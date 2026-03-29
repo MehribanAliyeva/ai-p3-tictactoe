@@ -56,7 +56,7 @@ def build_parser() -> argparse.ArgumentParser:
     command.add_argument("--neighbor-radius", type=int, default=1)
     command.add_argument("--recent-moves-count", type=int, default=20)
     command.add_argument("--no-turn-check", action="store_true")
-    command.add_argument("--poll-seconds", type=float, default=30.0)
+    command.add_argument("--poll-seconds", type=float, default=2.0)
     command.add_argument("--max-seconds", type=float, default=180.0)
 
     command = sub.add_parser("my-games")
@@ -110,10 +110,12 @@ def run_auto_play_loop(
     deadline = time.time() + max_seconds
     moves_made: list[dict[str, Any]] = []
     last_seen_status: str | None = None
+    check_interval = max(1, poll_seconds)
 
     while time.time() < deadline:
         details = client.get_game_details(game_id)
         last_seen_status = details.status
+        is_my_turn = str(details.turn_team_id or "") == team_id
 
         status_text = (details.status or "").lower()
         if any(word in status_text for word in ("won", "draw", "finished", "complete", "closed")):
@@ -125,6 +127,11 @@ def run_auto_play_loop(
                 "message": "Game finished during auto-play window.",
             }
 
+        # Attempt moves only when server indicates it is our turn.
+        if not is_my_turn:
+            time.sleep(check_interval)
+            continue
+            
         try:
             decision, board, details = choose_auto_move(
                 client=client,
@@ -162,11 +169,11 @@ def run_auto_play_loop(
                     "already occupied",
                 )
             ):
-                time.sleep(poll_seconds)
+                time.sleep(check_interval)
                 continue
             raise
 
-        time.sleep(poll_seconds)
+        time.sleep(check_interval)
 
     return {
         "code": "OK",
