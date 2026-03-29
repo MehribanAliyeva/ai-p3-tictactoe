@@ -129,6 +129,24 @@ def run_auto_play_loop(
         last_seen_status = details.status
         is_my_turn = str(details.turn_team_id or "") == team_id
 
+        if str(details.turn_team_id or "") == "-1":
+            winner_team_id = str(details.winner_team_id or "")
+            if winner_team_id and winner_team_id != "-1":
+                outcome = "win" if winner_team_id == team_id else "loss"
+                message = f"Game finished. Winner team: {winner_team_id}. Outcome: {outcome}."
+            else:
+                outcome = "draw"
+                message = "Game finished with no winner (draw)."
+            return {
+                "code": "OK",
+                "gameId": game_id,
+                "status": details.status,
+                "winnerTeamId": details.winner_team_id,
+                "outcome": outcome,
+                "movesMade": moves_made,
+                "message": message,
+            }
+
         status_text = (details.status or "").lower()
         if any(word in status_text for word in ("won", "draw", "finished", "complete", "closed")):
             return {
@@ -138,7 +156,7 @@ def run_auto_play_loop(
                 "movesMade": moves_made,
                 "message": "Game finished during auto-play window.",
             }
-
+    
         # Attempt moves only when server indicates it is our turn.
         if not is_my_turn:
             time.sleep(check_interval)
