@@ -59,6 +59,18 @@ def build_parser() -> argparse.ArgumentParser:
     command.add_argument("--poll-seconds", type=float, default=2.0)
     command.add_argument("--max-seconds", type=float, default=180.0)
 
+    command = sub.add_parser("join-game")
+    command.add_argument("--game-id", required=True)
+    command.add_argument("--team-id", required=True)
+    command.add_argument("--auto-play", action="store_true")
+    command.add_argument("--depth", type=int, default=3)
+    command.add_argument("--top-k-moves", type=int, default=12)
+    command.add_argument("--neighbor-radius", type=int, default=1)
+    command.add_argument("--recent-moves-count", type=int, default=20)
+    command.add_argument("--no-turn-check", action="store_true")
+    command.add_argument("--poll-seconds", type=float, default=2.0)
+    command.add_argument("--max-seconds", type=float, default=180.0)
+
     command = sub.add_parser("my-games")
     command.add_argument("--open-only", action="store_true")
 
@@ -228,6 +240,39 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
                 top_k_moves=args.top_k_moves,
                 neighbor_radius=args.neighbor_radius,
                 target=args.target,
+                recent_moves_count=args.recent_moves_count,
+                verify_turn=not args.no_turn_check,
+                poll_seconds=args.poll_seconds,
+                max_seconds=args.max_seconds,
+            )
+            result["autoPlay"] = auto_result
+
+        return result
+
+    if args.command == "join-game":
+        details = client.get_game_details(args.game_id)
+        if args.team_id not in {str(details.team1_id or ""), str(details.team2_id or "")}:
+            raise ValueError(
+                f"Team {args.team_id} is not part of game {args.game_id}. "
+                f"Expected one of: {details.team1_id}, {details.team2_id}"
+            )
+
+        result: dict[str, Any] = {
+            "code": "OK",
+            "gameId": args.game_id,
+            "teamId": args.team_id,
+            "game": asdict(details),
+        }
+
+        if args.auto_play:
+            auto_result = run_auto_play_loop(
+                client=client,
+                game_id=args.game_id,
+                team_id=args.team_id,
+                depth=args.depth,
+                top_k_moves=args.top_k_moves,
+                neighbor_radius=args.neighbor_radius,
+                target=details.target,
                 recent_moves_count=args.recent_moves_count,
                 verify_turn=not args.no_turn_check,
                 poll_seconds=args.poll_seconds,
