@@ -4,85 +4,171 @@
 
 The evaluation function estimates the quality of non-terminal board states and guides the minimax search.
 
-### Window-Based Scoring
+### Window-Based Exponential Scoring
 The board is decomposed into all contiguous **windows of length m** across:
-- rows
-- columns
-- diagonals
+- rows  
+- columns  
+- diagonals  
 
-Each window is scored based on symbol composition:
+Each window is evaluated using a composition-based scoring rule:
+
 - If both players appear → score = 0 (blocked line)
-- If only one player appears → reward grows **exponentially** with count  
-  - e.g., 10^k for k consecutive symbols
-- Encourages extending longer sequences toward the target m
+- If only one player appears:
+  - reward grows **exponentially** with count  
+  - score = base^k, where k is the number of symbols
+- If a window reaches length m:
+  - large reward/penalty (~10^6)
 
-### Longest Consecutive Sequence
-We compute the maximum consecutive symbols for each player:
-- reward own longest chain
-- penalize opponent’s longest chain
+This encourages:
+- extending own sequences
+- blocking opponent sequences early
 
-This captures near-win situations even if they span across different windows.
+---
 
-### Positional Heuristic (Center Control)
-Cells closer to the center are weighted higher:
-- central positions participate in more potential winning lines
-- improves early-game move quality
+### Longest Consecutive Chain Heuristic
+The evaluation explicitly considers the maximum consecutive symbols for each player:
 
-### Terminal Override
-Terminal states dominate heuristic values:
-- win → large positive value (e.g., +10^7)
-- loss → large negative value (e.g., -10^7)
-- draw → 0
+- reward own longest chain  
+- penalize opponent’s longest chain (slightly stronger weight)
 
-A depth-based adjustment prefers:
-- faster wins
-- slower losses
+This captures:
+- near-winning threats  
+- long-term strategic pressure  
+
+---
+
+### Positional (Center) Bias
+Each move is assigned a positional bonus based on Manhattan distance from center:
+
+- central positions → higher score  
+- edges → lower score  
+
+This reflects:
+- central cells participate in more winning combinations  
+- improves early-game positioning  
+
+---
+
+### Terminal State Override
+Terminal conditions dominate all heuristic values:
+
+- win → large positive score (~ +10^7)  
+- loss → large negative score (~ -10^7)  
+- draw → 0  
+
+Additionally:
+- depth is incorporated to prefer:
+  - faster wins  
+  - delayed losses  
 
 ---
 
 ## 2. Minimax / Adversarial Search
 
-We use **depth-limited minimax with alpha-beta pruning**:
+We implement **depth-limited minimax with alpha-beta pruning**.
 
-- Maximizing player tries to maximize the evaluation score  
-- Minimizing player tries to minimize it  
-- Alpha-beta pruning removes branches that cannot influence the final decision  
-- Depth limit ensures feasibility for large boards  
+### Core Strategy
+- Maximizing player → maximize evaluation score  
+- Minimizing player → minimize evaluation score  
+- Alpha-beta pruning eliminates irrelevant branches  
 
-Additionally:
-- Immediate winning moves are played without search  
-- Immediate threats from the opponent are blocked before deeper exploration  
+---
+
+### Immediate Tactical Optimization
+Before running search:
+
+- check for **immediate winning moves**  
+- check for **immediate opponent threats (blocks)**  
+
+This avoids unnecessary recursion and ensures tactical correctness.
+
+---
+
+### Iterative Deepening (Optional)
+Search can be performed using iterative deepening:
+
+- progressively increase depth  
+- return best move found within time constraint  
+
+---
+
+### Move Ordering
+Moves are evaluated heuristically before recursion:
+
+- uses evaluation function + positional bonus  
+- best moves explored first  
+- significantly improves alpha-beta pruning efficiency  
+
+---
+
+### Transposition Table (Caching)
+A hash-based cache stores previously evaluated states:
+
+- key = (board state, depth, player type)  
+- avoids recomputation of identical positions  
+- improves performance in deeper searches  
 
 ---
 
 ## 3. Performance Optimizations
 
-### Move Pruning (Locality Heuristic)
-Only consider moves near existing pieces (within a small radius).  
-This reduces the branching factor significantly.
+### Local Move Pruning (Neighborhood Heuristic)
+Instead of exploring all empty cells:
 
-### Move Ordering
-Moves are scored heuristically before recursion:
-- better moves explored first  
-- increases effectiveness of alpha-beta pruning  
+- only consider moves near existing pieces  
+- reduces branching factor dramatically  
+
+---
 
 ### Top-K Candidate Selection
-Only the top K promising moves are explored at each depth level.
+Only the top K moves (based on heuristic score) are explored:
 
-### Early Termination
-Detect:
-- immediate wins  
-- immediate blocks  
+- reduces computation  
+- maintains high-quality search  
 
-This avoids unnecessary recursive computation.
+---
+
+### Alpha-Beta Pruning
+Cuts off branches where:
+
+- outcome cannot improve current best result  
+
+This reduces complexity from:
+- O(b^d) → much smaller effective search space  
+
+---
+
+### Time-Bounded Search
+Search can be constrained by time:
+
+- uses deadline-based cutoff  
+- ensures responsiveness  
+- returns best move found so far  
+
+---
+
+### Random Tie-Breaking
+Small random noise is added to scores:
+
+- prevents deterministic play  
+- improves exploration diversity  
 
 ---
 
 ## Summary
 
-The combination of:
-- structured heuristic evaluation  
-- alpha-beta pruning  
-- aggressive move pruning  
+The agent combines:
 
-allows the agent to scale efficiently to generalized n × n Tic Tac Toe while maintaining strong decision quality.
+- exponential window-based evaluation  
+- longest-chain strategic awareness  
+- positional heuristics  
+- alpha-beta pruning with move ordering  
+- transposition caching and pruning  
+
+to efficiently scale to generalized n × n Tic Tac Toe.
+
+This design balances:
+
+- tactical accuracy (immediate wins/blocks)  
+- strategic depth (heuristics + minimax)  
+- computational efficiency (pruning + caching)
