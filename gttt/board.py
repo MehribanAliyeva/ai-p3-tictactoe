@@ -1,4 +1,7 @@
-"""Board representation and board-level operations."""
+"""Board representation and board-level operations.
+
+Authors: Kamal Ahmadov, Murad Valiyev, Mehriban Aliyeva
+"""
 
 from __future__ import annotations
 
@@ -12,12 +15,17 @@ from gttt.models import Move
 
 @dataclass
 class Board:
-    """Mutable board with x,y coordinates mapped to grid[y][x]."""
+    """Mutable board with ``x,y`` coordinates mapped to ``grid[y][x]``."""
 
     grid: list[list[str]]
 
     @classmethod
     def from_board_string(cls, board_text: str) -> "Board":
+        """Parse raw board text into a square board model.
+
+        Supports both multiline rows and compact flat strings.
+        """
+        # Primary path: keep row boundaries if API returned one row per line.
         raw_lines = [line.strip() for line in board_text.splitlines() if line.strip()]
         candidate_lines = ["".join(ch for ch in line if ch in {"X", "O", EMPTY_SYMBOL}) for line in raw_lines]
         candidate_lines = [line for line in candidate_lines if line]
@@ -30,6 +38,7 @@ class Board:
                 )
             return cls(grid=[list(line) for line in candidate_lines])
 
+        # Fallback path: some payloads come as one compact stream of board symbols.
         compact = "".join(ch for ch in board_text if ch in {"X", "O", EMPTY_SYMBOL})
         size = int(math.isqrt(len(compact)))
         if size * size != len(compact) or size == 0:
@@ -85,14 +94,17 @@ class Board:
         return not self.occupied_cells()
 
     def candidate_moves(self, radius: int) -> list[Move]:
+        """Return legal moves near occupied cells to reduce search branching."""
         occupied = self.occupied_cells()
         if not occupied:
+            # Opening preference: play center if available.
             center = self.size // 2
             center_move = Move(x=center, y=center)
             if self.cell(center_move) == EMPTY_SYMBOL:
                 return [center_move]
             return self.empty_cells()
 
+        # Restrict branching factor by exploring only cells near existing stones.
         candidates: set[tuple[int, int]] = set()
         for piece in occupied:
             for dx in range(-radius, radius + 1):
@@ -110,6 +122,8 @@ class Board:
         return [Move(x=x, y=y) for (x, y) in sorted(candidates)]
 
     def max_consecutive(self, symbol: str) -> int:
+        """Return longest contiguous run for a symbol in any direction."""
+        # Scan rows, columns, and both diagonal directions for longest run.
         best = 0
         size = self.size
 
@@ -171,9 +185,11 @@ class Board:
         return self.max_consecutive(symbol) >= target
 
     def windows(self, target: int) -> list[list[str]]:
+        """Enumerate all contiguous windows of length ``target`` on the board."""
         windows: list[list[str]] = []
         size = self.size
 
+        # Collect every contiguous line segment of length "target".
         for y in range(size):
             for x in range(size - target + 1):
                 windows.append([self.grid[y][x + offset] for offset in range(target)])

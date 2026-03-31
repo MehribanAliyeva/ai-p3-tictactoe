@@ -1,14 +1,19 @@
-"""Terminal rendering utilities for board visualization."""
+"""Terminal rendering utilities for board visualization.
+
+Author: Kamal Ahmadov, Mehriban Aliyeva
+"""
 
 from __future__ import annotations
 
 
 def parse_board_rows(board_text: str) -> list[str]:
+    """Extract clean board rows from raw board-string output."""
     rows = []
     for line in board_text.splitlines():
         stripped = line.strip()
         if not stripped:
             continue
+        # Ignore separators/noise and keep only board symbols.
         filtered = "".join(ch for ch in stripped if ch in {"X", "O", "-"})
         if filtered:
             rows.append(filtered)
@@ -16,6 +21,7 @@ def parse_board_rows(board_text: str) -> list[str]:
 
 
 def render_board(board_text: str, show_coords: bool = True) -> str:
+    """Render a plain-text board, optionally with row/column labels."""
     rows = parse_board_rows(board_text)
     if not rows:
         return "<empty board>"
@@ -30,6 +36,7 @@ def render_board(board_text: str, show_coords: bool = True) -> str:
     output: list[str] = []
 
     if show_coords:
+        # Build a compact coordinate guide for easier manual move validation.
         header_cells = cell_sep.join(f"{col:>{len(str(size - 1))}}" for col in range(size))
         output.append(" " * (row_label_width + 3) + header_cells)
         output.append(" " * (row_label_width + 1) + "+" + "-" * (len(header_cells) + 2))

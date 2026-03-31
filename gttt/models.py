@@ -1,4 +1,7 @@
-"""Typed models for API and search logic."""
+"""Typed models for API and search logic.
+
+Author: Kamal Ahmadov, Murad Valiyev
+"""
 
 from __future__ import annotations
 
@@ -8,6 +11,8 @@ from typing import Optional
 
 @dataclass(frozen=True)
 class Credentials:
+    """Authentication and endpoint configuration."""
+
     user_id: str
     api_key: str
     base_url: str
@@ -16,6 +21,8 @@ class Credentials:
 
 @dataclass(frozen=True)
 class Move:
+    """Internal move coordinate (x=column, y=row)."""
+
     x: int
     y: int
 
@@ -30,6 +37,8 @@ class Move:
 
 @dataclass(frozen=True)
 class SearchConfig:
+    """Search-time controls for alpha-beta move selection."""
+
     depth: int = 3
     top_k_moves: int = 12
     neighbor_radius: int = 1
@@ -40,6 +49,8 @@ class SearchConfig:
 
 @dataclass(frozen=True)
 class GameDetails:
+    """Normalized game metadata from API responses."""
+
     game_id: str
     game_type: str
     board_size: int
@@ -57,6 +68,8 @@ class GameDetails:
 
 @dataclass(frozen=True)
 class AutoMoveDecision:
+    """Chosen move plus inferred context used during selection."""
+
     move: Move
     my_symbol: str
     opponent_symbol: str

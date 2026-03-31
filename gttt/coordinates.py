@@ -1,4 +1,7 @@
-"""Coordinate conversion between internal board moves and API wire format."""
+"""Coordinate conversion between internal board moves and API wire format.
+
+Author: Kamal Ahmadov
+"""
 
 from __future__ import annotations
 
@@ -24,10 +27,12 @@ def move_to_server_pair(move: Move) -> tuple[int, int]:
 
 
 def server_text_to_move(value: str) -> Move:
+    """Parse a wire coordinate string (for example, ``"2,3"``) into a move."""
     left, right = value.split(",", 1)
     return server_pair_to_move(int(left.strip()), int(right.strip()))
 
 
 def move_to_server_text(move: Move) -> str:
+    """Serialize a move into the API wire coordinate text."""
     first, second = move_to_server_pair(move)
     return f"{first},{second}"

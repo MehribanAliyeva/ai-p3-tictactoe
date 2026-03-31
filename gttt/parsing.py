@@ -1,4 +1,7 @@
-"""Parsing and normalization helpers for API payloads."""
+"""Parsing and normalization helpers for API payloads.
+
+Author: Kamal Ahmadov
+"""
 
 from __future__ import annotations
 
@@ -17,6 +20,7 @@ from gttt.models import GameDetails, Move
 
 
 def parse_json_text(raw: str) -> dict[str, Any]:
+    """Parse JSON text and validate a dict root payload."""
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError as exc:
@@ -27,12 +31,14 @@ def parse_json_text(raw: str) -> dict[str, Any]:
 
 
 def parse_json_if_string(value: Any) -> Any:
+    """Parse JSON-like strings while leaving non-JSON values untouched."""
     if isinstance(value, str):
         stripped = value.strip()
         if stripped.startswith("{") or stripped.startswith("["):
             try:
                 return json.loads(stripped)
             except json.JSONDecodeError:
+                # API occasionally returns Python-literal-like text instead of strict JSON.
                 try:
                     return literal_eval(stripped)
                 except (ValueError, SyntaxError):
@@ -41,6 +47,8 @@ def parse_json_if_string(value: Any) -> Any:
 
 
 def parse_id_list(value: Any) -> list[str]:
+    """Normalize id collections from inconsistent API payload shapes."""
+    # Normalize multiple wire shapes (CSV, list, dict-like strings) into id strings.
     def normalize_item(item: Any) -> list[str]:
         parsed_item = parse_json_if_string(item)
         if isinstance(parsed_item, dict):
@@ -72,11 +80,13 @@ def parse_id_list(value: Any) -> list[str]:
 
 
 def parse_game_details(payload: dict[str, Any]) -> GameDetails:
+    """Normalize game details from either nested or flat API responses."""
     raw_game = parse_json_if_string(payload.get("game", {}))
     if not isinstance(raw_game, dict):
         raw_game = {}
 
     def first(*keys: str, default: Any = "") -> Any:
+        # Prefer nested "game" payload, then fall back to top-level duplicates.
         for key in keys:
             if key in raw_game and raw_game[key] not in (None, ""):
                 return raw_game[key]
@@ -112,6 +122,7 @@ def parse_game_details(payload: dict[str, Any]) -> GameDetails:
 
 
 def parse_moves(payload: dict[str, Any]) -> list[Move]:
+    """Parse recent move history into internal move coordinates."""
     raw_moves = payload.get("moves", [])
     if not isinstance(raw_moves, list):
         return []
@@ -123,6 +134,7 @@ def parse_moves(payload: dict[str, Any]) -> list[Move]:
         move_text = item.get("move")
         if isinstance(move_text, str) and "," in move_text:
             try:
+                # "move" text is authoritative when present (e.g., "row,col").
                 parsed.append(server_text_to_move(move_text))
                 continue
             except (TypeError, ValueError):
@@ -141,6 +153,7 @@ def parse_moves(payload: dict[str, Any]) -> list[Move]:
 
 
 def parse_symbol_by_team(payload: dict[str, Any], team_id: str) -> str | None:
+    """Infer symbol used by ``team_id`` from move history payload."""
     raw_moves = payload.get("moves", [])
     if not isinstance(raw_moves, list):
         return None
@@ -157,6 +170,7 @@ def parse_symbol_by_team(payload: dict[str, Any], team_id: str) -> str | None:
 
 
 def parse_board_map(payload: dict[str, Any]) -> dict[tuple[int, int], str]:
+    """Parse board map payload into internal ``(x, y) -> symbol`` mapping."""
     raw_output = parse_json_if_string(payload.get("output", {}))
     if not isinstance(raw_output, dict):
         return {}
@@ -177,6 +191,7 @@ def parse_board_map(payload: dict[str, Any]) -> dict[tuple[int, int], str]:
 
 
 def board_map_to_json_dict(board_map: dict[tuple[int, int], str]) -> dict[str, str]:
+    """Convert internal board map into server-oriented ``\"row,col\"`` keys."""
     output: dict[str, str] = {}
     for x, y in sorted(board_map):
         first, second = move_to_server_pair(Move(x=x, y=y))
@@ -185,4 +200,5 @@ def board_map_to_json_dict(board_map: dict[tuple[int, int], str]) -> dict[str, s
 
 
 def move_list_to_text(moves: Iterable[Move]) -> list[str]:
+    """Serialize move objects into API wire coordinate strings."""
     return [move_to_server_text(move) for move in moves]

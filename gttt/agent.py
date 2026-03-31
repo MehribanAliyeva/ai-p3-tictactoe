@@ -1,4 +1,7 @@
-"""Game agent orchestration and symbol inference."""
+"""Game agent orchestration and symbol inference.
+
+Author: Kamal Ahmadov
+"""
 
 from __future__ import annotations
 
@@ -16,6 +19,8 @@ def infer_symbols(
     moves_payload: dict[str, object] | None,
     board: Board,
 ) -> tuple[str, str]:
+    """Infer ``(my_symbol, opponent_symbol)`` from details, moves, or board state."""
+    # Fast path when team ids are present and trustworthy in game details.
     if str(game_details.team1_id) == str(my_team_id):
         return "X", "O"
     if str(game_details.team2_id) == str(my_team_id):
@@ -30,10 +35,13 @@ def infer_symbols(
 
     x_count = sum(cell == "X" for row in board.grid for cell in row)
     o_count = sum(cell == "O" for row in board.grid for cell in row)
+    # Fallback heuristic: if counts are equal, next player is X; otherwise O.
     return ("X", "O") if x_count == o_count else ("O", "X")
 
 
 def infer_target(target_override: int | None, game_details: GameDetails, board_size: int) -> int:
+    """Determine connect-length target with safe fallback behavior."""
+    # Priority: explicit override > server-reported target > board-size heuristic.
     if target_override is not None:
         return target_override
     if game_details.target > 0:
@@ -50,6 +58,7 @@ def choose_auto_move(
     recent_moves_count: int = 20,
     verify_turn: bool = True,
 ) -> tuple[AutoMoveDecision, Board, GameDetails]:
+    """Fetch game state, run search, and return the selected move decision."""
     details = client.get_game_details(game_id)
     board_text = client.get_board_string(game_id)
     board = Board.from_board_string(board_text)
@@ -57,6 +66,7 @@ def choose_auto_move(
 
     my_symbol, opp_symbol = infer_symbols(team_id, details, None, board)
     if not details.team1_id and not details.team2_id and not board.is_empty():
+        # Some responses omit team mapping; recover symbol from recent move history.
         try:
             moves_payload = client.get_moves_raw(game_id, max(recent_moves_count, 20))
             my_symbol, opp_symbol = infer_symbols(team_id, details, moves_payload, board)

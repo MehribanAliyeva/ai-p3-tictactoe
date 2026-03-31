@@ -1,4 +1,7 @@
-"""Alpha-beta search with pruning and move ordering."""
+"""Alpha-beta search with pruning and move ordering.
+
+Author: Kamal Ahmadov, Mehriban Aliyeva
+"""
 
 from __future__ import annotations
 
@@ -17,6 +20,8 @@ class _SearchTimeout(Exception):
 
 
 class AlphaBetaSearcher:
+    """Alpha-beta searcher with transposition caching and time controls."""
+
     def __init__(
         self,
         board: Board,
@@ -39,6 +44,7 @@ class AlphaBetaSearcher:
 
     @property
     def transposition_size(self) -> int:
+        """Expose number of cached search states for diagnostics/tests."""
         return len(self._transposition)
 
     def _board_key(self) -> str:
@@ -51,6 +57,7 @@ class AlphaBetaSearcher:
             raise _SearchTimeout()
 
     def choose_move(self) -> Move:
+        """Return the best legal move according to current search settings."""
         legal_moves = self.board.candidate_moves(self.cfg.neighbor_radius)
         if not legal_moves:
             raise SearchError("No legal moves are available")
@@ -72,14 +79,17 @@ class AlphaBetaSearcher:
                 return move
 
         if self.cfg.max_time_ms is not None:
+            # Use monotonic clock so deadline is immune to system time jumps.
             self._deadline = time.monotonic() + (self.cfg.max_time_ms / 1000.0)
         else:
             self._deadline = None
 
+        # Always keep a legal answer in case timeout interrupts deeper search.
         fallback_move = legal_moves[0]
 
         if self.cfg.iterative_deepening:
             best_move = fallback_move
+            # Iterative deepening returns progressively better moves under time pressure.
             for depth in range(1, self.cfg.depth + 1):
                 try:
                     _, candidate = self._minimax(
@@ -106,6 +116,7 @@ class AlphaBetaSearcher:
         return best_move or fallback_move
 
     def _terminal_score(self, depth: int) -> Optional[int]:
+        """Return terminal utility when game is finished, otherwise ``None``."""
         if self.board.has_winner(self.my_symbol, self.target):
             return self.weights.terminal_score + depth
         if self.board.has_winner(self.opp_symbol, self.target):
@@ -115,10 +126,12 @@ class AlphaBetaSearcher:
         return None
 
     def _ordered_moves(self, symbol: str) -> list[Move]:
+        """Generate candidate moves ordered by one-ply heuristic quality."""
         candidates = self.board.candidate_moves(self.cfg.neighbor_radius)
         scored: list[tuple[float, Move]] = []
 
         for move in candidates:
+            # One-ply static scoring gives alpha-beta better pruning opportunities.
             self.board.place(move, symbol)
             score = evaluate_board(
                 board=self.board,
@@ -145,8 +158,10 @@ class AlphaBetaSearcher:
         beta: int,
         maximizing: bool,
     ) -> tuple[int, Optional[Move]]:
+        """Depth-limited alpha-beta recursion returning score and best move."""
         self._check_timeout()
 
+        # Depth and side-to-move are part of the key because values are depth-dependent.
         key = (self._board_key(), depth, maximizing)
         cached = self._transposition.get(key)
         if cached is not None:

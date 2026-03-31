@@ -1,4 +1,7 @@
-"""Generalized Tic-Tac-Toe API client and agent package."""
+"""Generalized Tic-Tac-Toe API client and agent package.
+
+Author: Kamal Ahmadov
+"""
 
 from gttt.models import Credentials, GameDetails, Move, SearchConfig
 

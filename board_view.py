@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+"""Terminal board viewer script.
+
+Author: Kamal Ahmadov
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -10,6 +15,7 @@ from gttt.terminal_board import render_board
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build CLI argument parser for board snapshots and live watch mode."""
     parser = argparse.ArgumentParser(description="Terminal board viewer for GTTT games")
     parser.add_argument("--game-id", required=True)
     parser.add_argument("--user-id")
@@ -23,6 +29,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def print_snapshot(client: APIClient, game_id: str, show_coords: bool) -> None:
+    """Fetch and print one board snapshot with game metadata."""
     details = client.get_game_details(game_id)
     board_text = client.get_board_string(game_id)
 
@@ -39,6 +46,7 @@ def print_snapshot(client: APIClient, game_id: str, show_coords: bool) -> None:
 
 
 def main() -> int:
+    """Run board viewer script."""
     args = build_parser().parse_args()
 
     creds = resolve_credentials(
@@ -55,6 +63,7 @@ def main() -> int:
 
     try:
         while True:
+            # ANSI clear-screen sequence for a live-refresh terminal view.
             print("\033[2J\033[H", end="")
             print_snapshot(client, args.game_id, show_coords=not args.no_coords)
             print("\n(Press Ctrl+C to stop watching)")

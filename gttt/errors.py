@@ -1,4 +1,7 @@
-"""Domain and API exceptions."""
+"""Domain and API exceptions.
+
+Author: Kamal Ahmadov
+"""
 
 from __future__ import annotations
 

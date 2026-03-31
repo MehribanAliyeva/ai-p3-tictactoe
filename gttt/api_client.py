@@ -1,4 +1,7 @@
-"""HTTP client wrapper for the single-endpoint game API."""
+"""HTTP client wrapper for the single-endpoint game API.
+
+Author: Kamal Ahmadov, 
+"""
 
 from __future__ import annotations
 
@@ -22,6 +25,8 @@ from gttt.parsing import (
 
 
 class APIClient:
+    """Thin HTTP wrapper that normalizes API transport and payload behavior."""
+
     def __init__(
         self,
         credentials: Credentials,
@@ -35,6 +40,8 @@ class APIClient:
         self.retry_backoff_seconds = retry_backoff_seconds
 
     def _headers(self, is_post: bool) -> dict[str, str]:
+        """Build request headers expected by the game service."""
+        # Endpoint expects these custom credential headers on every request.
         headers = {
             "Accept": "application/json",
             "User-Agent": "curl/8.0.1",
@@ -48,6 +55,7 @@ class APIClient:
         return headers
 
     def _request(self, method: str, params: dict[str, object]) -> dict[str, object]:
+        """Execute a request with retries and normalized error handling."""
         normalized = {key: str(value) for key, value in params.items()}
         is_post = method.upper() == "POST"
 
@@ -68,6 +76,7 @@ class APIClient:
             except HTTPError as exc:
                 error_body = exc.read().decode("utf-8", errors="replace").strip()
                 if exc.code >= 500 and attempt < self.max_retries:
+                    # Retry transient server failures with exponential backoff.
                     time.sleep(self.retry_backoff_seconds * (2**attempt))
                     continue
                 raise APITransportError(f"HTTP {exc.code}: {error_body or exc.reason}") from exc
@@ -84,6 +93,7 @@ class APIClient:
                     continue
                 raise APITransportError("Empty response from API")
             if body.startswith("<"):
+                # Some failures return an HTML page; retry before failing hard.
                 if attempt < self.max_retries:
                     time.sleep(self.retry_backoff_seconds * (2**attempt))
                     continue
@@ -97,24 +107,30 @@ class APIClient:
         raise APITransportError("Request failed after retries")
 
     def create_team(self, name: str) -> str:
+        """Create a team and return its id."""
         payload = self._request("POST", {"type": "team", "name": name})
         return str(payload.get("teamId", ""))
 
     def add_member(self, team_id: str, user_id: str) -> None:
+        """Add a user to a team."""
         self._request("POST", {"type": "member", "teamId": team_id, "userId": user_id})
 
     def remove_member(self, team_id: str, user_id: str) -> None:
+        """Remove a user from a team."""
         self._request("POST", {"type": "removeMember", "teamId": team_id, "userId": user_id})
 
     def get_team_members(self, team_id: str) -> list[str]:
+        """Return member ids for a team."""
         payload = self._request("GET", {"type": "team", "teamId": team_id})
         return parse_id_list(payload.get("userIds", []))
 
     def get_my_teams(self) -> list[str]:
+        """Return team ids available to the current user."""
         payload = self._request("GET", {"type": "myTeams"})
         return parse_id_list(payload.get("teams") or payload.get("myTeams", []))
 
     def create_game(self, team1_id: str, team2_id: str, board_size: int, target: int) -> str:
+        """Create a game between two teams and return game id."""
         payload = self._request(
             "POST",
             {
@@ -129,6 +145,7 @@ class APIClient:
         return str(payload.get("gameId", ""))
 
     def get_my_games(self, open_only: bool = False) -> list[str]:
+        """Return game ids for current user, optionally only open games."""
         request_type = "myOpenGames" if open_only else "myGames"
         payload = self._request("GET", {"type": request_type})
         if open_only:
@@ -140,10 +157,12 @@ class APIClient:
         return parse_id_list(payload.get("games") or payload.get("myGames", []))
 
     def get_game_details(self, game_id: str) -> GameDetails:
+        """Return normalized game details."""
         payload = self._request("GET", {"type": "gameDetails", "gameId": game_id})
         return parse_game_details(payload)
 
     def get_board_string(self, game_id: str) -> str:
+        """Return raw board-string payload for a game."""
         payload = self._request("GET", {"type": "boardString", "gameId": game_id})
         for key in ("output", "board", "boardString", "string"):
             value = payload.get(key)
@@ -159,17 +178,21 @@ class APIClient:
         raise APITransportError(f"Could not parse board string from payload: {payload}")
 
     def get_board_map(self, game_id: str) -> dict[tuple[int, int], str]:
+        """Return parsed board-map representation for a game."""
         payload = self._request("GET", {"type": "boardMap", "gameId": game_id})
         return parse_board_map(payload)
 
     def get_moves_raw(self, game_id: str, count: int = 20) -> dict[str, object]:
+        """Return raw move-history payload."""
         return self._request("GET", {"type": "moves", "gameId": game_id, "count": count})
 
     def get_moves(self, game_id: str, count: int = 20) -> list[Move]:
+        """Return parsed move-history for a game."""
         payload = self.get_moves_raw(game_id, count)
         return parse_moves(payload)
 
     def make_move(self, game_id: str, team_id: str, move: Move) -> str:
+        """Submit a move and return created move id."""
         payload = self._request(
             "POST",
             {
