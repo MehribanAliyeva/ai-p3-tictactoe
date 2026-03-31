@@ -58,6 +58,9 @@ def build_parser() -> argparse.ArgumentParser:
     command.add_argument("--no-turn-check", action="store_true")
     command.add_argument("--poll-seconds", type=float, default=2.0)
     command.add_argument("--max-seconds", type=float, default=3600.0)
+    command.add_argument("--random-tie-break", action="store_true")
+    command.add_argument("--max-time-ms", type=int)
+    command.add_argument("--no-iterative-deepening", action="store_true")
 
     command = sub.add_parser("join-game")
     command.add_argument("--game-id", required=True)
@@ -70,6 +73,9 @@ def build_parser() -> argparse.ArgumentParser:
     command.add_argument("--no-turn-check", action="store_true")
     command.add_argument("--poll-seconds", type=float, default=2.0)
     command.add_argument("--max-seconds", type=float, default=3600.0)
+    command.add_argument("--random-tie-break", action="store_true")
+    command.add_argument("--max-time-ms", type=int)
+    command.add_argument("--no-iterative-deepening", action="store_true")
 
     command = sub.add_parser("my-games")
     command.add_argument("--open-only", action="store_true")
@@ -118,6 +124,9 @@ def run_auto_play_loop(
     verify_turn: bool,
     poll_seconds: float,
     max_seconds: float,
+    random_tie_break: bool,
+    max_time_ms: int | None,
+    iterative_deepening: bool,
 ) -> dict[str, Any]:
     deadline = time.time() + max_seconds
     moves_made: list[dict[str, Any]] = []
@@ -189,6 +198,9 @@ def run_auto_play_loop(
                     depth=depth,
                     top_k_moves=top_k_moves,
                     neighbor_radius=neighbor_radius,
+                    random_tie_break=random_tie_break,
+                    max_time_ms=max_time_ms,
+                    iterative_deepening=iterative_deepening,
                 ),
                 target_override=target,
                 recent_moves_count=recent_moves_count,
@@ -285,6 +297,9 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
                 verify_turn=not args.no_turn_check,
                 poll_seconds=args.poll_seconds,
                 max_seconds=args.max_seconds,
+                random_tie_break=args.random_tie_break,
+                max_time_ms=args.max_time_ms,
+                iterative_deepening=not args.no_iterative_deepening,
             )
             result["autoPlay"] = auto_result
 
@@ -318,6 +333,9 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
                 verify_turn=not args.no_turn_check,
                 poll_seconds=args.poll_seconds,
                 max_seconds=args.max_seconds,
+                random_tie_break=args.random_tie_break,
+                max_time_ms=args.max_time_ms,
+                iterative_deepening=not args.no_iterative_deepening,
             )
             result["autoPlay"] = auto_result
 
