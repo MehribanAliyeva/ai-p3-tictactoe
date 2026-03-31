@@ -192,13 +192,16 @@ def run_auto_play_loop(
                 ),
                 target_override=target,
                 recent_moves_count=recent_moves_count,
-                verify_turn=verify_turn,
+                # Turn ownership is already checked in this loop.
+                # Keeping this False avoids race-condition failures when
+                # opponent moves between poll and move computation.
+                verify_turn=False,
             )
             move_id = client.make_move(game_id, team_id, decision.move)
             moves_made.append(
                 {
                     "moveId": move_id,
-                    "move": decision.move.to_text(),
+                    "move": move_to_server_text(decision.move),
                     "mySymbol": decision.my_symbol,
                     "target": decision.target,
                 }
@@ -210,6 +213,8 @@ def run_auto_play_loop(
                 phrase in msg
                 for phrase in (
                     "not your turn",
+                    "not team",
+                    "turn team",
                     "not the move of the team",
                     "no moves",
                     "game is not started",
