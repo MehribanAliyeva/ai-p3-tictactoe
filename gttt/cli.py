@@ -62,6 +62,7 @@ def build_parser() -> argparse.ArgumentParser:
     command.add_argument("--no-turn-check", action="store_true")
     command.add_argument("--poll-seconds", type=float, default=2.0)
     command.add_argument("--max-seconds", type=float, default=3600.0)
+    command.add_argument("--verbose", action="store_true")
     command.add_argument("--random-tie-break", action="store_true")
     command.add_argument("--max-time-ms", type=int)
     command.add_argument("--no-iterative-deepening", action="store_true")
@@ -77,6 +78,7 @@ def build_parser() -> argparse.ArgumentParser:
     command.add_argument("--no-turn-check", action="store_true")
     command.add_argument("--poll-seconds", type=float, default=2.0)
     command.add_argument("--max-seconds", type=float, default=3600.0)
+    command.add_argument("--verbose", action="store_true")
     command.add_argument("--random-tie-break", action="store_true")
     command.add_argument("--max-time-ms", type=int)
     command.add_argument("--no-iterative-deepening", action="store_true")
@@ -150,6 +152,14 @@ def _should_ignore_autoplay_error(message: str) -> bool:
     return any(phrase in lowered for phrase in ignored_phrases)
 
 
+def _log_autoplay(verbose: bool, message: str) -> None:
+    """Emit an autoplay progress line when verbose mode is enabled."""
+    if not verbose:
+        return
+    timestamp = time.strftime("%H:%M:%S")
+    print(f"[auto-play {timestamp}] {message}", file=sys.stderr, flush=True)
+
+
 def run_auto_play_loop(
     client: APIClient,
     game_id: str,
@@ -166,21 +176,47 @@ def run_auto_play_loop(
     random_tie_break: bool,
     max_time_ms: int | None,
     iterative_deepening: bool,
+    verbose: bool,
 ) -> dict[str, Any]:
     """Poll a game and play moves automatically until finish or timeout window."""
     deadline = time.time() + max_seconds
     moves_made: list[dict[str, Any]] = []
     last_seen_status: str | None = None
+    last_logged_status: str | None = None
+    last_logged_turn: str | None = None
+    last_logged_moves: int | None = None
     check_interval = max(1, poll_seconds)
+    _log_autoplay(
+        verbose,
+        (
+            f"started game={game_id} team={team_id} depth={depth} "
+            f"poll={check_interval}s max_window={max_seconds}s max_time_ms={max_time_ms}"
+        ),
+    )
 
     while time.time() < deadline:
         details = client.get_game_details(game_id)
         last_seen_status = details.status
+        current_turn = str(details.turn_team_id or "")
+
+        if (
+            details.status != last_logged_status
+            or current_turn != last_logged_turn
+            or details.moves != last_logged_moves
+        ):
+            _log_autoplay(
+                verbose,
+                f"poll status={details.status} turn={current_turn or '-'} moves={details.moves}",
+            )
+            last_logged_status = details.status
+            last_logged_turn = current_turn
+            last_logged_moves = details.moves
 
         # If board is full, treat game as tie before evaluating turn ownership.
         if isinstance(details.board_size, int) and isinstance(details.moves, int):
             board_capacity = details.board_size * details.board_size
             if board_capacity > 0 and details.moves >= board_capacity:
+                _log_autoplay(verbose, "board is full; game considered tie")
                 return {
                     "code": "OK",
                     "gameId": game_id,
@@ -194,9 +230,9 @@ def run_auto_play_loop(
                     ),
                 }
 
-        is_my_turn = str(details.turn_team_id or "") == team_id
+        is_my_turn = current_turn == team_id
 
-        if str(details.turn_team_id or "") == "-1":
+        if current_turn == "-1":
             winner_team_id = str(details.winner_team_id or "")
             if winner_team_id and winner_team_id != "-1":
                 outcome = "win" if winner_team_id == team_id else "loss"
@@ -204,6 +240,7 @@ def run_auto_play_loop(
             else:
                 outcome = "draw"
                 message = "Game finished with no winner (draw)."
+            _log_autoplay(verbose, message)
             return {
                 "code": "OK",
                 "gameId": game_id,
@@ -215,6 +252,7 @@ def run_auto_play_loop(
             }
 
         if _status_indicates_finished(details.status):
+            _log_autoplay(verbose, f"game status indicates finished: {details.status}")
             return {
                 "code": "OK",
                 "gameId": game_id,
@@ -229,6 +267,7 @@ def run_auto_play_loop(
             continue
             
         try:
+            started_at = time.monotonic()
             decision, board, details = choose_auto_move(
                 client=client,
                 game_id=game_id,
@@ -247,7 +286,13 @@ def run_auto_play_loop(
                 # Race-condition failures are safely retried by the polling loop.
                 verify_turn=verify_turn,
             )
+            decision_ms = int((time.monotonic() - started_at) * 1000)
+            _log_autoplay(
+                verbose,
+                f"selected move={move_to_server_text(decision.move)} in {decision_ms}ms",
+            )
             move_id = client.make_move(game_id, team_id, decision.move)
+            _log_autoplay(verbose, f"submitted moveId={move_id}")
             moves_made.append(
                 {
                     "moveId": move_id,
@@ -258,13 +303,16 @@ def run_auto_play_loop(
             )
         except Exception as exc:
             # Ignore transient states from race conditions and keep polling.
-            if _should_ignore_autoplay_error(str(exc)):
+            error_text = str(exc)
+            if _should_ignore_autoplay_error(error_text):
+                _log_autoplay(verbose, f"transient state: {error_text}")
                 time.sleep(check_interval)
                 continue
             raise
 
         time.sleep(check_interval)
 
+    _log_autoplay(verbose, f"time window ended after {max_seconds}s")
     return {
         "code": "OK",
         "gameId": game_id,
@@ -299,6 +347,7 @@ def _handle_create_game(client: APIClient, args: argparse.Namespace) -> dict[str
         random_tie_break=args.random_tie_break,
         max_time_ms=args.max_time_ms,
         iterative_deepening=not args.no_iterative_deepening,
+        verbose=args.verbose,
     )
     result["autoPlay"] = auto_result
     return result
@@ -338,6 +387,7 @@ def _handle_join_game(client: APIClient, args: argparse.Namespace) -> dict[str, 
         random_tie_break=args.random_tie_break,
         max_time_ms=args.max_time_ms,
         iterative_deepening=not args.no_iterative_deepening,
+        verbose=args.verbose,
     )
     result["autoPlay"] = auto_result
     return result
