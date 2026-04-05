@@ -1,174 +1,23 @@
-# Generalized Tic Tac Toe Agent (n × n, target m)
+# Tic Tac Toe Agent (n × n, target m)
 
 ## 1. Evaluation (Heuristic) Function
 
-The evaluation function estimates the quality of non-terminal board states and guides the minimax search.
+The evaluation function estimates the quality of non-terminal board states and guides the minimax search. The board is decomposed into all contiguous windows of length m across rows, columns, and diagonals. Each window is scored based on its composition: if both players appear, the window is blocked and contributes zero; if only one player appears, the score grows exponentially with the number of symbols (base^k), encouraging the formation of longer sequences. If a window reaches the target length m, it receives a large reward or penalty, approximating terminal behavior. 
 
-### Window-Based Exponential Scoring
-The board is decomposed into all contiguous **windows of length m** across:
-- rows  
-- columns  
-- diagonals  
-
-Each window is evaluated using a composition-based scoring rule:
-
-- If both players appear → score = 0 (blocked line)
-- If only one player appears:
-  - reward grows **exponentially** with count  
-  - score = base^k, where k is the number of symbols
-- If a window reaches length m:
-  - large reward/penalty (~10^6)
-
-This encourages:
-- extending own sequences
-- blocking opponent sequences early
-
----
-
-### Longest Consecutive Chain Heuristic
-The evaluation explicitly considers the maximum consecutive symbols for each player:
-
-- reward own longest chain  
-- penalize opponent’s longest chain (slightly stronger weight)
-
-This captures:
-- near-winning threats  
-- long-term strategic pressure  
-
----
-
-### Positional (Center) Bias
-Each move is assigned a positional bonus based on Manhattan distance from center:
-
-- central positions → higher score  
-- edges → lower score  
-
-This reflects:
-- central cells participate in more winning combinations  
-- improves early-game positioning  
-
----
-
-### Terminal State Override
-Terminal conditions dominate all heuristic values:
-
-- win → large positive score (~ +10^7)  
-- loss → large negative score (~ -10^7)  
-- draw → 0  
-
-Additionally:
-- depth is incorporated to prefer:
-  - faster wins  
-  - delayed losses  
-
----
+In addition, the heuristic incorporates the maximum consecutive sequence length for both players, rewarding longer chains for the agent while penalizing those of the opponent slightly more strongly to emphasize defensive play. A positional component is also included, assigning higher scores to moves closer to the center using a Manhattan-distance-based bonus, reflecting the higher strategic value of central positions. Terminal states override all heuristic components: a win yields a large positive score, a loss a large negative score, and a draw zero, with a depth adjustment that favors faster wins and delayed losses.
 
 ## 2. Minimax / Adversarial Search
 
-We implement **depth-limited minimax with alpha-beta pruning**.
+The agent uses a depth-limited minimax algorithm with alpha-beta pruning to efficiently explore the game tree. The maximizing player seeks to maximize the heuristic score, while the minimizing player seeks to minimize it. Alpha-beta pruning eliminates branches that cannot affect the final decision, significantly reducing computation. Before running the full search, the agent checks for immediate winning moves and immediate threats from the opponent, ensuring tactical correctness without unnecessary recursion.
 
-### Core Strategy
-- Maximizing player → maximize evaluation score  
-- Minimizing player → minimize evaluation score  
-- Alpha-beta pruning eliminates irrelevant branches  
-
----
-
-### Immediate Tactical Optimization
-Before running search:
-
-- check for **immediate winning moves**  
-- check for **immediate opponent threats (blocks)**  
-
-This avoids unnecessary recursion and ensures tactical correctness.
-
----
-
-### Iterative Deepening (Optional)
-Search can be performed using iterative deepening:
-
-- progressively increase depth  
-- return best move found within time constraint  
-
----
-
-### Move Ordering
-Moves are evaluated heuristically before recursion:
-
-- uses evaluation function + positional bonus  
-- best moves explored first  
-- significantly improves alpha-beta pruning efficiency  
-
----
-
-### Transposition Table (Caching)
-A hash-based cache stores previously evaluated states:
-
-- key = (board state, depth, player type)  
-- avoids recomputation of identical positions  
-- improves performance in deeper searches  
-
----
+To further improve performance, the search supports iterative deepening, progressively increasing depth while maintaining a valid best move under time constraints. Move ordering is applied by evaluating candidate moves heuristically before recursion, allowing stronger moves to be explored first and improving pruning efficiency. Additionally, a transposition table caches previously evaluated states using a combination of board configuration, depth, and player type, reducing redundant computations in deeper searches.
 
 ## 3. Performance Optimizations
 
-### Local Move Pruning (Neighborhood Heuristic)
-Instead of exploring all empty cells:
+To control the branching factor, the agent applies a locality heuristic, considering only moves within a small neighborhood of existing pieces rather than the entire board. This dramatically reduces the number of candidate moves. From these candidates, only the top K moves—ranked by heuristic score are explored at each depth, balancing efficiency and decision quality. Alpha-beta pruning further reduces the effective search space by cutting off suboptimal branches early.
 
-- only consider moves near existing pieces  
-- reduces branching factor dramatically  
-
----
-
-### Top-K Candidate Selection
-Only the top K moves (based on heuristic score) are explored:
-
-- reduces computation  
-- maintains high-quality search  
-
----
-
-### Alpha-Beta Pruning
-Cuts off branches where:
-
-- outcome cannot improve current best result  
-
-This reduces complexity from:
-- O(b^d) → much smaller effective search space  
-
----
-
-### Time-Bounded Search
-Search can be constrained by time:
-
-- uses deadline-based cutoff  
-- ensures responsiveness  
-- returns best move found so far  
-
----
-
-### Random Tie-Breaking
-Small random noise is added to scores:
-
-- prevents deterministic play  
-- improves exploration diversity  
-
----
+The search can also be constrained by time using a deadline-based mechanism, ensuring responsiveness even in larger boards. A small random noise is added to move scores to break ties and avoid deterministic play patterns, improving exploration diversity. Together, these optimizations allow the agent to scale effectively to generalized n × n Tic Tac Toe while maintaining strong strategic and tactical performance.
 
 ## Summary
 
-The agent combines:
-
-- exponential window-based evaluation  
-- longest-chain strategic awareness  
-- positional heuristics  
-- alpha-beta pruning with move ordering  
-- transposition caching and pruning  
-
-to efficiently scale to generalized n × n Tic Tac Toe.
-
-This design balances:
-
-- tactical accuracy (immediate wins/blocks)  
-- strategic depth (heuristics + minimax)  
-- computational efficiency (pruning + caching)
+The agent combines an exponential window-based heuristic, longest-chain evaluation, positional awareness, and depth-adjusted terminal scoring with an optimized alpha-beta search framework. Through move ordering, locality pruning, top-K selection, caching, and time control, the system achieves a balance between computational efficiency and high-quality decision making in generalized Tic Tac Toe.
