@@ -218,3 +218,6 @@ __marimo__/
 # Project specifications 
 api_spec.md
 project_statement.md    
+
+# Private local UI prototype (kept out of VCS for now)
+/private_ui/
