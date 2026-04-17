@@ -61,6 +61,68 @@ class SearchTests(unittest.TestCase):
         _ = searcher.choose_move()
         self.assertGreater(searcher.transposition_size, 0)
 
+    def test_ordered_moves_preserves_double_threat_blocks_beyond_top_k(self) -> None:
+        board = Board.from_board_string(
+            "-------\n"
+            "-------\n"
+            "-------\n"
+            "-XXXX--\n"
+            "-------\n"
+            "-------\n"
+            "-------"
+        )
+        searcher = AlphaBetaSearcher(
+            board=board,
+            target=5,
+            my_symbol="O",
+            opp_symbol="X",
+            search_config=SearchConfig(depth=2, top_k_moves=1, neighbor_radius=1),
+        )
+        ordered = searcher._ordered_moves("O")
+        coords = {(move.x, move.y) for move in ordered}
+        self.assertIn((0, 3), coords)
+        self.assertIn((5, 3), coords)
+
+    def test_ordered_moves_prioritizes_forcing_double_threat_creation(self) -> None:
+        board = Board.from_board_string(
+            "-------\n"
+            "-------\n"
+            "-------\n"
+            "--OO-O-\n"
+            "-------\n"
+            "-------\n"
+            "-------"
+        )
+        searcher = AlphaBetaSearcher(
+            board=board,
+            target=5,
+            my_symbol="O",
+            opp_symbol="X",
+            search_config=SearchConfig(depth=1, top_k_moves=8, neighbor_radius=1),
+        )
+        ordered = searcher._ordered_moves("O")
+        self.assertEqual((ordered[0].x, ordered[0].y), (4, 3))
+
+    def test_choose_move_prefers_safe_double_threat(self) -> None:
+        board = Board.from_board_string(
+            "-------\n"
+            "-------\n"
+            "-------\n"
+            "--OO-O-\n"
+            "-------\n"
+            "-------\n"
+            "-------"
+        )
+        searcher = AlphaBetaSearcher(
+            board=board,
+            target=5,
+            my_symbol="O",
+            opp_symbol="X",
+            search_config=SearchConfig(depth=2, top_k_moves=10, neighbor_radius=1),
+        )
+        move = searcher.choose_move()
+        self.assertEqual((move.x, move.y), (4, 3))
+
 
 if __name__ == "__main__":
     unittest.main()
